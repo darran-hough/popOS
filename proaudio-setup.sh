@@ -249,30 +249,21 @@ echo "  To use GameMode with a game: gamemoderun %command% (in Steam launch opti
 
 
 # ============================================================
-# 8. WINE STAGING (noble / Ubuntu 24.04 repo)
+# 8. WINE (standard — from Pop!_OS/Ubuntu repos)
 #
-# IMPORTANT CHANGE from original script:
-#   - Old script used 'jammy' (22.04) sources — WRONG for 24.04
-#   - Pop!_OS 24.04 is based on Ubuntu 24.04 (noble)
-#   - Use winehq-noble.sources
+# We use standard Wine from the Ubuntu repos rather than
+# Wine Staging. Staging's experimental patches caused
+# yabridge plugin GUI and audio issues. Standard Wine is
+# more stable for VST plugin use via yabridge.
 # ============================================================
-notify "8/12 — Installing Wine Staging"
+notify "8/12 — Installing Wine"
 
+# Enable 32-bit architecture (required for Wine)
 sudo dpkg --add-architecture i386
-sudo mkdir -pm755 /etc/apt/keyrings
-
-# Fetch WineHQ GPG key
-sudo wget -O /etc/apt/keyrings/winehq-archive.key \
-  https://dl.winehq.org/wine-builds/winehq.key
-
-# Use noble (24.04) sources — NOT jammy
-sudo wget -NP /etc/apt/sources.list.d/ \
-  https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
-
 sudo apt update
-sudo apt install -y --install-recommends winehq-staging
+sudo apt install -y wine wine64 wine32
 
-echo "  Wine Staging installed: $(wine --version 2>/dev/null || echo 'check manually')"
+echo "  Wine installed: $(wine --version 2>/dev/null || echo 'check manually')"
 
 # ---- Wine desktop integration --------------------------------
 # Pop!_OS does not create wine.desktop automatically so .exe files
@@ -297,7 +288,7 @@ EOF
 cat > ~/.local/share/applications/wine-msi.desktop <<'MSIEOF'
 [Desktop Entry]
 Name=Wine MSI Installer
-Exec=msiexec /i %f
+Exec=wine msiexec /i %f /quiet /norestart
 Type=Application
 MimeType=application/x-msi;
 Icon=wine
@@ -360,6 +351,13 @@ winecfg /v win10
   urlmon \
   wininet \
   dxvk || true
+
+# ---- .NET runtimes ------------------------------------------
+# Many plugin installers and managers require .NET.
+# dotnet48 covers .NET 3.5, 4.0, 4.5, 4.6, 4.7 and 4.8 in one install.
+# Installing dotnet35 first avoids dependency errors on some installers.
+~/.local/share/winetricks/winetricks -q dotnet35 || true
+~/.local/share/winetricks/winetricks -q dotnet48 || true
 
 # ---- Create missing Downloads folders -----------------------
 # NTKDaemon (Native Instruments) fails silently if these don't exist.
