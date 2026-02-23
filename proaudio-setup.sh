@@ -284,7 +284,7 @@ mkdir -p ~/.local/share/applications
 cat > ~/.local/share/applications/wine.desktop <<'EOF'
 [Desktop Entry]
 Name=Wine Windows Program Loader
-Exec=wine-staging %f
+Exec=wine %f
 Type=Application
 MimeType=application/x-ms-dos-executable;application/x-msi;application/x-msdownload;
 Icon=wine
@@ -302,9 +302,9 @@ echo "  Double-clicking .exe files will now open with Wine"
 
 
 # ============================================================
-# 9. WINETRICKS
+# 9. WINETRICKS + WINDOWS RUNTIME DEPENDENCIES
 # ============================================================
-notify "9/12 — Installing Winetricks"
+notify "9/12 — Installing Winetricks and Windows runtime dependencies"
 
 sudo apt install -y cabextract
 mkdir -p ~/.local/share/winetricks
@@ -322,18 +322,90 @@ if ! grep -q "winetricks" ~/.bash_aliases 2>/dev/null; then
   } >> ~/.bash_aliases
 fi
 
-# shellcheck source=/dev/null
 . ~/.bash_aliases 2>/dev/null || true
 
-# Install base Wine fonts (needed for many plugins)
+# ---- Set Wine to Windows 10 mode ----------------------------
+# Required for most modern plugin installers (Waves, NI, iZotope etc.)
+winecfg /v win10
+
+# ---- Core fonts ---------------------------------------------
 ~/.local/share/winetricks/winetricks -q corefonts || \
   warn "winetricks corefonts failed — run manually: winetricks corefonts"
 
-# Save a clean .wine-base copy for creating fresh prefixes later
+# ---- Visual C++ runtimes ------------------------------------
+# Required by virtually every modern Windows VST plugin.
+# Installing all common versions covers Waves, NI, iZotope, FabFilter etc.
+~/.local/share/winetricks/winetricks -q \
+  vcrun2013 \
+  vcrun2015 \
+  vcrun2019 \
+  vcrun2022
+
+# ---- Additional runtimes ------------------------------------
+# gdiplus  — GDI+ graphics (many plugin UIs depend on this)
+# mfc42    — MFC runtime (older plugins)
+# mfc140   — MFC runtime (newer plugins including NI)
+# urlmon   — URL handling (Native Access 2, Waves Central)
+# wininet  — Windows internet stack (needed for plugin activation)
+# dxvk     — DirectX to Vulkan translation (improves plugin GUI rendering)
+~/.local/share/winetricks/winetricks -q \
+  gdiplus \
+  mfc42 \
+  mfc140 \
+  urlmon \
+  wininet \
+  dxvk
+
+# ---- Create missing Downloads folders -----------------------
+# NTKDaemon (Native Instruments) fails silently if these don't exist.
+# This is a known Wine quirk — Windows apps expect these folders to exist.
+mkdir -p "$HOME/.wine/drive_c/users/Public/Downloads"
+mkdir -p "$HOME/.wine/drive_c/users/$USER/Downloads"
+echo "  Created Wine user Downloads folders (required for Native Instruments)"
+
+# ---- Save clean Wine prefix ---------------------------------
 if [ ! -d ~/.wine-base ]; then
   cp -r ~/.wine ~/.wine-base
   echo "  Saved clean Wine prefix to ~/.wine-base"
 fi
+
+# ---- Native Instruments launch helper -----------------------
+# NA2 requires NTKDaemon to be running first, and must be launched
+# with a full absolute path (relative paths cause silent failures).
+# This helper script handles both automatically.
+cat > ~/.local/bin/native-access <<EOF
+#!/bin/bash
+# Native Access 2 launcher for Wine on Linux
+# Starts NTKDaemon first, waits for it to initialise, then launches NA2.
+
+NTKDAEMON="\$HOME/.wine/drive_c/Program Files/Native Instruments/NTKDaemon/NTKDaemon.exe"
+NATIVE_ACCESS="\$HOME/.wine/drive_c/Program Files/Native Instruments/Native Access/Native Access.exe"
+
+if [ ! -f "\$NTKDAEMON" ]; then
+  echo "NTKDaemon not found — install Native Access first via:"
+  echo "  wine \$HOME/Downloads/Native-Access-Setup.exe"
+  exit 1
+fi
+
+echo "Starting NTKDaemon..."
+wine "\$NTKDAEMON" &
+sleep 4
+
+echo "Launching Native Access 2..."
+wine "\$NATIVE_ACCESS"
+EOF
+
+mkdir -p ~/.local/bin
+chmod +x ~/.local/bin/native-access
+
+# Add ~/.local/bin to PATH if not already there
+if ! grep -q 'HOME/.local/bin' ~/.bash_aliases 2>/dev/null; then
+  echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bash_aliases
+fi
+
+echo ""
+echo "  Native Access 2 launcher saved to ~/.local/bin/native-access"
+echo "  Usage: After installing NA2 via Wine, just run: native-access"
 
 
 # ============================================================
