@@ -91,52 +91,54 @@ sudo update-initramfs -u
 # ============================================================
 # 3. PIPEWIRE LOW-LATENCY TUNING
 #
-# Pop!_OS 24.04 ships with PipeWire + WirePlumber fully
-# configured — no reinstallation needed. We tune it for DAW use.
+# Pop!_OS 24.04 ships PipeWire + WirePlumber fully configured.
+# DO NOT override ~/.config/pipewire/pipewire.conf — it breaks
+# WirePlumber's node linking and kills all audio devices.
+#
+# Instead we:
+#   a) Install the JACK bridge for DAWs that need it
+#   b) Write a small WirePlumber drop-in for default clock settings
+#   c) Document the runtime quantum command for session-by-session tuning
 # ============================================================
 notify "3/12 — Tuning PipeWire for low-latency pro audio"
 
-# Ensure pipewire-jack bridge is installed (needed for DAWs that use JACK API)
+# JACK bridge — needed for DAWs that use the JACK API (Ardour, Bitwig, etc.)
 sudo apt install -y pipewire-jack pipewire-alsa libspa-0.2-jack
 
-# Create user PipeWire config directory
-mkdir -p ~/.config/pipewire
+# WirePlumber drop-in for default sample rate and quantum
+# This is the correct Pop!_OS safe way — a drop-in, not an override.
+mkdir -p ~/.config/wireplumber/wireplumber.conf.d
 
-# Low-latency PipeWire config — 48kHz, 128 quantum (~2.7ms round-trip)
-# Adjust quantum lower (64) for less latency if your CPU can handle it,
-# or higher (256/512) if you get xruns.
-cat > ~/.config/pipewire/pipewire.conf <<'EOF'
-# PipeWire low-latency config for DAW/pro audio use
-# Tune default.clock.quantum for your CPU:
-#   64  = ~1.3ms  (very demanding)
-#   128 = ~2.7ms  (good balance — recommended)
+cat > ~/.config/wireplumber/wireplumber.conf.d/50-pro-audio.conf <<'EOF'
+# Pro audio tuning drop-in for Pop!_OS 24.04
+# Safe to delete to revert: rm ~/.config/wireplumber/wireplumber.conf.d/50-pro-audio.conf
+#
+# Quantum guide (adjust to taste):
+#   64  = ~1.3ms  (very low latency, demanding on CPU)
+#   128 = ~2.7ms  (recommended starting point)
 #   256 = ~5.3ms  (safer for plugin-heavy sessions)
 
-context.properties = {
-    default.clock.rate          = 48000
-    default.clock.quantum       = 128
-    default.clock.min-quantum   = 64
-    default.clock.max-quantum   = 8192
-    default.clock.allowed-rates = [ 44100 48000 88200 96000 ]
-}
-
-context.modules = [
-    # Use libpipewire-module-rt (direct RT scheduling) instead of RTKit
-    # for better real-time performance with DAWs
-    { name = libpipewire-module-rt
-        args = {
-            nice.level    = -11
-            rt.prio       = 88
-            rt.time.soft  = 2000000
-            rt.time.hard  = 2000000
-        }
-        flags = [ ifexists nofail ]
+monitor.alsa.rules = [
+  {
+    matches = [ { node.name = "~alsa_output.*" } ]
+    actions = {
+      update-props = {
+        audio.rate          = 48000
+        audio.allowed-rates = "44100,48000,88200,96000"
+      }
     }
+  }
 ]
 EOF
 
-echo "  PipeWire config written to ~/.config/pipewire/pipewire.conf"
-echo "  To apply at runtime (without reboot): systemctl --user restart pipewire wireplumber"
+echo "  WirePlumber drop-in written to ~/.config/wireplumber/wireplumber.conf.d/50-pro-audio.conf"
+echo ""
+echo "  To change quantum at runtime (no reboot, takes effect immediately):"
+echo "    pw-metadata -n settings 0 clock.force-quantum 128"
+echo "  To revert to default quantum:"
+echo "    pw-metadata -n settings 0 clock.force-quantum 0"
+
+systemctl --user restart wireplumber pipewire-pulse
 
 
 # ============================================================
@@ -398,18 +400,23 @@ sudo apt install -y \
   carla \
   helvum \
   pavucontrol \
-  rtirq \
-  cpupower-gui \
   htop
+
+# rtirq-init — correct package name on Ubuntu/Debian (NOT 'rtirq')
+# Works with threadirqs kernel param already set via kernelstub above.
+# Raises IRQ thread priority for your Scarlett 8i6 automatically at boot.
+sudo apt install -y rtirq-init
+sudo systemctl enable --now rtirq 2>/dev/null || \
+  warn "rtirq service could not be enabled — run: sudo systemctl start rtirq"
+
+# cpupower-gui — may not be in Pop!_OS repos, install gracefully
+sudo apt install -y cpupower-gui 2>/dev/null || \
+  warn "cpupower-gui not in repos — use 'sudo cpupower frequency-set -g performance' from terminal instead"
 
 # Media codecs — try Pop!_OS specific pack first, fall back to ubuntu-restricted-extras
 sudo apt install -y media-codec-pack 2>/dev/null || \
   sudo apt install -y ubuntu-restricted-extras 2>/dev/null || \
   warn "No media codec pack found — codecs may already be included in Pop!_OS 24.04"
-
-# Enable rtirq for IRQ thread priority management
-sudo systemctl enable --now rtirq 2>/dev/null || \
-  warn "rtirq service not available — skip if not installed"
 
 
 # ============================================================
