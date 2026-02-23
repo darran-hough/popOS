@@ -286,19 +286,32 @@ cat > ~/.local/share/applications/wine.desktop <<'EOF'
 Name=Wine Windows Program Loader
 Exec=wine %f
 Type=Application
-MimeType=application/x-ms-dos-executable;application/x-msi;application/x-msdownload;
+MimeType=application/x-ms-dos-executable;application/x-msdownload;
 Icon=wine
 NoDisplay=false
 StartupNotify=true
 EOF
 
+# .msi files must use msiexec /i — running them directly with wine crashes immediately.
+# A separate desktop entry is needed for correct .msi handling.
+cat > ~/.local/share/applications/wine-msi.desktop <<'MSIEOF'
+[Desktop Entry]
+Name=Wine MSI Installer
+Exec=msiexec /i %f
+Type=Application
+MimeType=application/x-msi;
+Icon=wine
+NoDisplay=false
+StartupNotify=true
+MSIEOF
+
 xdg-mime default wine.desktop application/x-ms-dos-executable
-xdg-mime default wine.desktop application/x-msi
 xdg-mime default wine.desktop application/x-msdownload
+xdg-mime default wine-msi.desktop application/x-msi
 update-desktop-database ~/.local/share/applications
 
-echo "  Wine registered as default handler for .exe and .msi files"
-echo "  Double-clicking .exe files will now open with Wine"
+echo "  Wine registered as default handler for .exe files"
+echo "  msiexec registered as default handler for .msi files"
 
 
 # ============================================================
