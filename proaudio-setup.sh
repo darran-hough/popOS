@@ -263,6 +263,11 @@ sudo dpkg --add-architecture i386
 sudo apt update
 sudo apt install -y wine wine64 wine32
 
+# winbind — required for NTLM authentication inside Wine
+# Without this, .NET installers and some plugin activations fail with
+# "ntlm_auth was not found" errors.
+sudo apt install -y winbind libntlm0
+
 echo "  Wine installed: $(wine --version 2>/dev/null || echo 'check manually')"
 
 # ---- Wine desktop integration --------------------------------
@@ -356,8 +361,16 @@ winecfg /v win10
 # Many plugin installers and managers require .NET.
 # dotnet48 covers .NET 3.5, 4.0, 4.5, 4.6, 4.7 and 4.8 in one install.
 # Installing dotnet35 first avoids dependency errors on some installers.
+#
+# Kill any running Wine processes first — leftover wineserver processes
+# cause partial installs and silent failures with .NET installers.
+wineserver -k 2>/dev/null || true
+sleep 2
 ~/.local/share/winetricks/winetricks -q dotnet35 || true
+wineserver -k 2>/dev/null || true
+sleep 2
 ~/.local/share/winetricks/winetricks -q dotnet48 || true
+wineserver -k 2>/dev/null || true
 
 # ---- Create missing Downloads folders -----------------------
 # NTKDaemon (Native Instruments) fails silently if these don't exist.
