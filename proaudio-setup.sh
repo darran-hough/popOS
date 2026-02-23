@@ -284,7 +284,7 @@ mkdir -p ~/.local/share/applications
 cat > ~/.local/share/applications/wine.desktop <<'EOF'
 [Desktop Entry]
 Name=Wine Windows Program Loader
-Exec=wine %f
+Exec=wine-staging %f
 Type=Application
 MimeType=application/x-ms-dos-executable;application/x-msi;application/x-msdownload;
 Icon=wine
