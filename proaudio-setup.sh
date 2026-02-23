@@ -361,33 +361,75 @@ if [ ! -d ~/.wine-base ]; then
   echo "  Saved clean Wine prefix to ~/.wine-base"
 fi
 
-# ---- Native Instruments launch helper -----------------------
-# NA2 requires NTKDaemon to be running first, and must be launched
-# with a full absolute path (relative paths cause silent failures).
-# This helper script handles both automatically.
-cat > ~/.local/bin/native-access <<EOF
+# ---- Native Instruments helper -----------------------
+# Smart script that handles download, install AND launch automatically.
+# Run it any time: if NA2 isn't installed it downloads + installs it first,
+# then launches it. If already installed, it just starts it correctly.
+mkdir -p ~/.local/bin
+cat > ~/.local/bin/native-access << 'NAEOF'
 #!/bin/bash
-# Native Access 2 launcher for Wine on Linux
-# Starts NTKDaemon first, waits for it to initialise, then launches NA2.
+# =============================================================
+# Native Access 2 — installer + launcher for Wine on Linux
+# Usage: native-access
+# Works whether NA2 is installed or not.
+# =============================================================
 
-NTKDAEMON="\$HOME/.wine/drive_c/Program Files/Native Instruments/NTKDaemon/NTKDaemon.exe"
-NATIVE_ACCESS="\$HOME/.wine/drive_c/Program Files/Native Instruments/Native Access/Native Access.exe"
+NTKDAEMON="$HOME/.wine/drive_c/Program Files/Native Instruments/NTKDaemon/NTKDaemon.exe"
+NATIVE_ACCESS="$HOME/.wine/drive_c/Program Files/Native Instruments/Native Access/Native Access.exe"
+NA_INSTALLER="$HOME/.cache/native-access/NativeAccess_Setup.exe"
+NA_DOWNLOAD_URL="https://downloads.native-instruments.com/releases/nativeaccess/NativeAccess_Setup.exe"
 
-if [ ! -f "\$NTKDAEMON" ]; then
-  echo "NTKDaemon not found — install Native Access first via:"
-  echo "  wine \$HOME/Downloads/Native-Access-Setup.exe"
-  exit 1
+# ---- Already installed — just launch it ---------------------
+if [ -f "$NATIVE_ACCESS" ]; then
+  echo "Starting NTKDaemon..."
+  wine "$NTKDAEMON" &
+  sleep 4
+  echo "Launching Native Access 2..."
+  wine "$NATIVE_ACCESS"
+  exit 0
 fi
 
-echo "Starting NTKDaemon..."
-wine "\$NTKDAEMON" &
-sleep 4
+# ---- Not installed — download if needed then install --------
+echo "Native Access 2 is not installed yet."
+echo ""
 
-echo "Launching Native Access 2..."
-wine "\$NATIVE_ACCESS"
-EOF
+if [ ! -f "$NA_INSTALLER" ] || [ ! -s "$NA_INSTALLER" ]; then
+  echo "Downloading Native Access 2 installer..."
+  mkdir -p "$HOME/.cache/native-access"
+  wget -q --show-progress "$NA_DOWNLOAD_URL" -O "$NA_INSTALLER"
 
-mkdir -p ~/.local/bin
+  if [ ! -f "$NA_INSTALLER" ] || [ ! -s "$NA_INSTALLER" ]; then
+    echo ""
+    echo "  Auto-download failed — NI may have updated their download URL."
+    echo "  Download Native Access manually from:"
+    echo "  https://www.native-instruments.com/en/specials/free-downloads/native-access/"
+    echo "  Save the installer to: $NA_INSTALLER"
+    echo "  Then run: native-access"
+    rm -f "$NA_INSTALLER"
+    exit 1
+  fi
+else
+  echo "Found cached installer at $NA_INSTALLER"
+fi
+
+echo ""
+echo "Running installer — follow the prompts in the Wine window..."
+wine "$NA_INSTALLER"
+
+# ---- Verify install was successful then launch --------------
+if [ -f "$NATIVE_ACCESS" ]; then
+  echo ""
+  echo "Installation complete — launching Native Access 2..."
+  wine "$NTKDAEMON" &
+  sleep 4
+  wine "$NATIVE_ACCESS"
+else
+  echo ""
+  echo "Native Access does not appear to be installed yet."
+  echo "If the installer is still running, wait for it to finish then run: native-access"
+fi
+NAEOF
+
 chmod +x ~/.local/bin/native-access
 
 # Add ~/.local/bin to PATH if not already there
@@ -396,8 +438,8 @@ if ! grep -q 'HOME/.local/bin' ~/.bash_aliases 2>/dev/null; then
 fi
 
 echo ""
-echo "  Native Access 2 launcher saved to ~/.local/bin/native-access"
-echo "  Usage: After installing NA2 via Wine, just run: native-access"
+echo "  Native Access 2 helper saved to ~/.local/bin/native-access"
+echo "  Usage: just run 'native-access' — it handles download, install and launch automatically"
 
 
 # ============================================================
