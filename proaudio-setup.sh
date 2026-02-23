@@ -333,28 +333,20 @@ winecfg /v win10
   warn "winetricks corefonts failed — run manually: winetricks corefonts"
 
 # ---- Visual C++ runtimes ------------------------------------
-# Required by virtually every modern Windows VST plugin.
-# Installing all common versions covers Waves, NI, iZotope, FabFilter etc.
 ~/.local/share/winetricks/winetricks -q \
   vcrun2013 \
   vcrun2015 \
   vcrun2019 \
-  vcrun2022
+  vcrun2022 || true
 
 # ---- Additional runtimes ------------------------------------
-# gdiplus  — GDI+ graphics (many plugin UIs depend on this)
-# mfc42    — MFC runtime (older plugins)
-# mfc140   — MFC runtime (newer plugins including NI)
-# urlmon   — URL handling (Native Access 2, Waves Central)
-# wininet  — Windows internet stack (needed for plugin activation)
-# dxvk     — DirectX to Vulkan translation (improves plugin GUI rendering)
 ~/.local/share/winetricks/winetricks -q \
   gdiplus \
   mfc42 \
   mfc140 \
   urlmon \
   wininet \
-  dxvk
+  dxvk || true
 
 # ---- Create missing Downloads folders -----------------------
 # NTKDaemon (Native Instruments) fails silently if these don't exist.
