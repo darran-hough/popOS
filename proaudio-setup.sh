@@ -274,6 +274,32 @@ sudo apt install -y --install-recommends winehq-staging
 
 echo "  Wine Staging installed: $(wine --version 2>/dev/null || echo 'check manually')"
 
+# ---- Wine desktop integration --------------------------------
+# Pop!_OS does not create wine.desktop automatically so .exe files
+# won't open with Wine by default and Wine won't appear in "Open With".
+# We create the desktop entry and register the MIME types manually.
+
+mkdir -p ~/.local/share/applications
+
+cat > ~/.local/share/applications/wine.desktop <<'EOF'
+[Desktop Entry]
+Name=Wine Windows Program Loader
+Exec=wine %f
+Type=Application
+MimeType=application/x-ms-dos-executable;application/x-msi;application/x-msdownload;
+Icon=wine
+NoDisplay=false
+StartupNotify=true
+EOF
+
+xdg-mime default wine.desktop application/x-ms-dos-executable
+xdg-mime default wine.desktop application/x-msi
+xdg-mime default wine.desktop application/x-msdownload
+update-desktop-database ~/.local/share/applications
+
+echo "  Wine registered as default handler for .exe and .msi files"
+echo "  Double-clicking .exe files will now open with Wine"
+
 
 # ============================================================
 # 9. WINETRICKS
