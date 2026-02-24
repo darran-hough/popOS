@@ -53,6 +53,19 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 # ============================================================
+# PRE-FLIGHT — Remove known broken PPAs before any apt update
+# ============================================================
+notify "PRE-FLIGHT — Removing known broken PPAs"
+
+if grep -r "flexiondotorg/mangohud" /etc/apt/sources.list.d/ 2>/dev/null | grep -q "mangohud"; then
+  warn "Removing incompatible flexiondotorg/mangohud PPA (causes apt errors)..."
+  sudo add-apt-repository --remove ppa:flexiondotorg/mangohud -y 2>/dev/null || true
+  info "Removed. MangoHud will be installed from official Ubuntu repos."
+else
+  skip "No broken MangoHud PPA found — continuing"
+fi
+
+# ============================================================
 # 1. SYSTEM UPDATE
 # ============================================================
 notify "1/22 — Updating system packages"
@@ -317,7 +330,7 @@ if [ "$GPU_NVIDIA" = true ]; then
     libnvidia-gl-570 2>/dev/null || true
   
   sudo dpkg --add-architecture i386 2>/dev/null || true
-  sudo apt update
+  sudo apt update || true
   sudo apt install -y libnvidia-gl-570:i386 2>/dev/null || true
   
   if [ -f /etc/modprobe.d/nvidia-power.conf ]; then
@@ -337,7 +350,7 @@ fi
 
 # Vulkan + 32-bit support
 sudo dpkg --add-architecture i386 2>/dev/null || true
-sudo apt update
+sudo apt update || true
 sudo apt install -y \
   vulkan-tools \
   libvulkan1 \
@@ -355,7 +368,7 @@ sudo apt install -y gamemode lib32-gamemode 2>/dev/null || sudo apt install -y g
 notify "9/22 — Installing Wine"
 
 sudo dpkg --add-architecture i386 2>/dev/null || true
-sudo apt update
+sudo apt update || true
 sudo apt install -y wine wine64 wine32 winbind libntlm0
 
 echo "  Wine installed: $(wine --version 2>/dev/null || echo 'check manually')"
@@ -637,7 +650,7 @@ if grep -r "lutris-team" /etc/apt/sources.list.d/ 2>/dev/null | grep -q "lutris"
   skip "Lutris PPA already added"
 else
   sudo add-apt-repository -y ppa:lutris-team/lutris 2>/dev/null || true
-  sudo apt update
+  sudo apt update || true
 fi
 
 sudo apt install -y lutris
@@ -667,7 +680,7 @@ if [ "$RAZER_DETECTED" = true ]; then
     skip "OpenRazer PPA already added"
   else
     sudo add-apt-repository -y ppa:openrazer/stable 2>/dev/null || true
-    sudo apt update
+    sudo apt update || true
   fi
   
   sudo apt install -y openrazer-meta polychromatic
@@ -756,12 +769,7 @@ sudo apt install -y joystick jstest-gtk
 # ============================================================
 notify "19/22 — Installing MangoHud + GOverlay"
 
-# Remove any broken PPAs first
-if grep -r "flexiondotorg/mangohud" /etc/apt/sources.list.d/ 2>/dev/null; then
-  warn "Removing incompatible MangoHud PPA..."
-  sudo add-apt-repository --remove ppa:flexiondotorg/mangohud -y 2>/dev/null || true
-  sudo apt update
-fi
+# Note: broken flexiondotorg/mangohud PPA was already removed in PRE-FLIGHT above
 
 sudo apt install -y mangohud lib32-mangohud 2>/dev/null || sudo apt install -y mangohud
 
